@@ -1,8 +1,9 @@
-﻿const passwordLoginForm = document.getElementById('passwordLoginForm');
+const passwordLoginForm = document.getElementById('passwordLoginForm');
 const totpLoginForm = document.getElementById('totpLoginForm');
 const confirmEnrollmentForm = document.getElementById('confirmEnrollmentForm');
 const recoveryRotateForm = document.getElementById('recoveryRotateForm');
 const passwordChangeForm = document.getElementById('passwordChangeForm');
+const totpEntryForm = document.getElementById('totpEntryForm');
 const startEnrollmentButton = document.getElementById('startEnrollmentButton');
 const refreshSessionButton = document.getElementById('refreshSessionButton');
 const logoutButton = document.getElementById('logoutButton');
@@ -14,9 +15,24 @@ const meResult = document.getElementById('meResult');
 const qrMount = document.getElementById('qrMount');
 const enrollmentMeta = document.getElementById('enrollmentMeta');
 const sessionStatus = document.getElementById('sessionStatus');
+const totpEntryResult = document.getElementById('totpEntryResult');
+const totpEntriesMeta = document.getElementById('totpEntriesMeta');
+const totpEntriesList = document.getElementById('totpEntriesList');
+
+let entryRefreshTimer = null;
 
 function pretty(data) {
   return JSON.stringify(data, null, 2);
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[char]));
 }
 
 async function api(path, options = {}) {
@@ -49,6 +65,61 @@ function renderEnrollment(enrollment) {
   });
 }
 
+function stopEntryRefreshLoop() {
+  if (entryRefreshTimer) {
+    clearInterval(entryRefreshTimer);
+    entryRefreshTimer = null;
+  }
+}
+
+function startEntryRefreshLoop() {
+  if (entryRefreshTimer) {
+    return;
+  }
+
+  entryRefreshTimer = setInterval(() => {
+    refreshTotpEntries({ silent: true });
+  }, 1000);
+}
+
+function renderTotpEntries(entries) {
+  if (!entries.length) {
+    totpEntriesList.innerHTML = '<div class="message-box">还没有录入任何 TOTP 条目。</div>';
+    return;
+  }
+
+  totpEntriesList.innerHTML = entries.map((entry) => `
+    <article class="totp-entry-card">
+      <div class="totp-entry-head">
+        <div>
+          <div class="totp-entry-title">${escapeHtml(entry.issuer)}</div>
+          <div class="totp-entry-subtitle">${escapeHtml(entry.account)}</div>
+        </div>
+        <div class="status-badge">${entry.secondsRemaining}s</div>
+      </div>
+      <div class="totp-entry-code">${escapeHtml(entry.currentCode)}</div>
+      <div class="totp-entry-meta">
+        <span>Secret: ${escapeHtml(entry.secretPreview)}</span>
+        <span>Updated: ${escapeHtml(entry.updatedAt)}</span>
+      </div>
+    </article>
+  `).join('');
+}
+
+async function refreshTotpEntries({ silent = false } = {}) {
+  try {
+    const payload = await api('/api/totp-entries', { method: 'GET' });
+    renderTotpEntries(payload.entries || []);
+    totpEntriesMeta.textContent = `共 ${payload.entries.length} 条，服务端每 30 秒轮换一次验证码。`;
+  } catch (error) {
+    stopEntryRefreshLoop();
+    totpEntriesMeta.textContent = error.message;
+    if (!silent) {
+      totpEntriesList.innerHTML = '<div class="message-box">登录后将在这里显示实时验证码。</div>';
+    }
+  }
+}
+
 async function refreshStatus() {
   try {
     const status = await api('/api/status', { method: 'GET' });
@@ -56,6 +127,9 @@ async function refreshStatus() {
       sessionStatus.textContent = '管理员账户未初始化';
       meResult.textContent = '请先在服务器上运行 npm run init-admin -- --password="您的长密码"。';
       renderEnrollment(null);
+      stopEntryRefreshLoop();
+      totpEntriesMeta.textContent = '管理员账户未初始化。';
+      totpEntriesList.innerHTML = '<div class="message-box">初始化管理员账户后即可录入 TOTP 条目。</div>';
       return;
     }
     await refreshSession();
@@ -80,10 +154,16 @@ async function refreshSession() {
     sessionStatus.textContent = markers.length
       ? `已认证的管理员 (${markers.join(' / ')})`
       : '已认证的管理员';
+
+    await refreshTotpEntries();
+    startEntryRefreshLoop();
   } catch (error) {
     meResult.textContent = error.message;
     sessionStatus.textContent = '当前未登录';
     renderEnrollment(null);
+    stopEntryRefreshLoop();
+    totpEntriesMeta.textContent = '当前未登录。';
+    totpEntriesList.innerHTML = '<div class="message-box">登录后将在这里显示实时验证码。</div>';
   }
 }
 
@@ -209,12 +289,35 @@ passwordChangeForm.addEventListener('submit', async (event) => {
   }
 });
 
+totpEntryForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  totpEntryResult.textContent = '正在保存新的 TOTP 条目...';
+  const formData = new FormData(totpEntryForm);
+
+  try {
+    const payload = await api('/api/totp-entries', {
+      method: 'POST',
+      body: JSON.stringify({
+        issuer: formData.get('issuer'),
+        account: formData.get('account'),
+        secret: formData.get('secret')
+      })
+    });
+    totpEntryResult.textContent = pretty(payload);
+    totpEntryForm.reset();
+    await refreshTotpEntries();
+    startEntryRefreshLoop();
+  } catch (error) {
+    totpEntryResult.textContent = error.message;
+  }
+});
+
 refreshSessionButton.addEventListener('click', refreshStatus);
 logoutButton.addEventListener('click', async () => {
   try {
     await api('/api/logout', { method: 'POST', body: '{}' });
   } catch (_) {
-    // 忽略登出时的错误
+    // Ignore logout errors to keep the UI moving.
   }
   await refreshStatus();
 });

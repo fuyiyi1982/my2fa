@@ -52,6 +52,14 @@ function openDatabase() {
       success INTEGER NOT NULL,
       detail_json TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS totp_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      issuer TEXT NOT NULL,
+      account_name TEXT NOT NULL,
+      secret_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
   return database;
 }
@@ -115,6 +123,57 @@ function parseAdminRow(row) {
 function getAdmin() {
   const row = db.prepare('SELECT * FROM admin WHERE id = 1').get();
   return parseAdminRow(row);
+}
+
+function parseTotpEntryRow(row, timestamp = Date.now()) {
+  if (!row) {
+    return null;
+  }
+
+  const secret = decryptSecret(JSON.parse(row.secret_json));
+  const secondsIntoStep = Math.floor(timestamp / 1000) % STEP_SECONDS;
+  return {
+    id: row.id,
+    issuer: row.issuer,
+    account: row.account_name,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    secretPreview: secret.slice(0, 4) + '...' + secret.slice(-4),
+    currentCode: totp(secret, timestamp, STEP_SECONDS, DIGITS),
+    secondsRemaining: STEP_SECONDS - secondsIntoStep
+  };
+}
+
+function listTotpEntries(timestamp = Date.now()) {
+  return db.prepare(`
+    SELECT id, issuer, account_name, secret_json, created_at, updated_at
+    FROM totp_entries
+    ORDER BY issuer COLLATE NOCASE ASC, account_name COLLATE NOCASE ASC, id ASC
+  `).all().map((row) => parseTotpEntryRow(row, timestamp));
+}
+
+function createTotpEntry({ issuer, account, secret }) {
+  const normalizedIssuer = String(issuer || '').trim();
+  const normalizedAccount = String(account || '').trim();
+  const normalizedSecret = normalizeBase32Secret(secret);
+  const createdAt = nowIso();
+
+  const result = db.prepare(`
+    INSERT INTO totp_entries (issuer, account_name, secret_json, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(
+    normalizedIssuer,
+    normalizedAccount,
+    JSON.stringify(encryptSecret(normalizedSecret)),
+    createdAt,
+    createdAt
+  );
+
+  return db.prepare(`
+    SELECT id, issuer, account_name, secret_json, created_at, updated_at
+    FROM totp_entries
+    WHERE id = ?
+  `).get(result.lastInsertRowid);
 }
 
 function adminExists() {
@@ -253,6 +312,15 @@ function base32Decode(input) {
 
 function generateSecret(lengthBytes = 20) {
   return base32Encode(crypto.randomBytes(lengthBytes));
+}
+
+function normalizeBase32Secret(value) {
+  const normalized = String(value || '').toUpperCase().replace(/\s+/g, '').replace(/=+$/g, '');
+  if (normalized.length < 16) {
+    throw new Error('Secret must be at least 16 base32 characters.');
+  }
+  base32Decode(normalized);
+  return normalized;
 }
 
 function normalizeTotpCode(value) {
@@ -651,6 +719,56 @@ async function handleApi(req, res, url) {
       },
       auditLogs: listRecentAuditLogs(12)
     });
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/totp-entries') {
+    const auth = requireSession(req, res);
+    if (!auth) {
+      return;
+    }
+
+    sendJson(res, 200, {
+      entries: listTotpEntries(Date.now())
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/totp-entries') {
+    const auth = requireSession(req, res);
+    if (!auth) {
+      return;
+    }
+
+    const body = await parseJsonBody(req);
+    const issuer = String(body.issuer || '').trim();
+    const account = String(body.account || '').trim();
+    const secret = String(body.secret || '').trim();
+
+    if (!issuer) {
+      sendJson(res, 400, { error: 'Issuer is required.' });
+      return;
+    }
+    if (!account) {
+      sendJson(res, 400, { error: 'Account is required.' });
+      return;
+    }
+    if (!secret) {
+      sendJson(res, 400, { error: 'Secret is required.' });
+      return;
+    }
+
+    try {
+      const entry = parseTotpEntryRow(createTotpEntry({ issuer, account, secret }));
+      logAudit('totp_entry_created', true, { issuer, account, entryId: entry.id });
+      sendJson(res, 201, {
+        message: 'TOTP entry saved.',
+        entry
+      });
+    } catch (error) {
+      logAudit('totp_entry_created', false, { issuer, account, reason: 'invalid_secret' });
+      sendJson(res, 400, { error: error.message || 'Secret is invalid.' });
+    }
     return;
   }
 

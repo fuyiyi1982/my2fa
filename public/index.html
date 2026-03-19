@@ -120,6 +120,40 @@
           <h2 class="section-title">运行状态 & 审计日志</h2>
           <div id="meResult" class="code-box">当前未登录。</div>
         </section>
+
+        <section class="card full-width">
+          <div class="card-header">
+            <div>
+              <h2 class="section-title">我的 TOTP 条目</h2>
+              <p class="description small">手动录入 issuer、account 和 secret，登录后实时查看当前 6 位验证码与剩余秒数。</p>
+            </div>
+          </div>
+          <div class="grid-2-col">
+            <form id="totpEntryForm" class="form-group">
+              <div class="input-wrapper">
+                <label>Issuer</label>
+                <input type="text" name="issuer" placeholder="例如 Google" required />
+              </div>
+              <div class="input-wrapper">
+                <label>Account</label>
+                <input type="text" name="account" placeholder="例如 your@email.com" required />
+              </div>
+              <div class="input-wrapper">
+                <label>Secret</label>
+                <input type="text" name="secret" placeholder="输入 Base32 密钥，空格可有可无" required />
+              </div>
+              <button type="submit" class="btn">保存条目</button>
+              <div id="totpEntryResult" class="message-box">登录后即可录入新的 TOTP 条目。</div>
+            </form>
+
+            <div class="totp-panel">
+              <div id="totpEntriesMeta" class="message-box">当前未登录。</div>
+              <div id="totpEntriesList" class="totp-entry-list">
+                <div class="message-box">登录后将在这里显示实时验证码。</div>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
     </div>
     <script src="/app.js"></script>
