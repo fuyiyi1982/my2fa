@@ -50,6 +50,32 @@ function setMessage(element, text) {
   element.textContent = text;
 }
 
+async function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.top = '-9999px';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+
+  try {
+    const succeeded = document.execCommand('copy');
+    if (!succeeded) {
+      throw new Error('Copy command failed');
+    }
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
+
 function renderEnrollment(enrollment) {
   if (!enrollment) {
     qrMount.textContent = '暂无正在进行的绑定任务。';
@@ -362,10 +388,10 @@ totpEntriesList.addEventListener('click', async (event) => {
     }
 
     try {
-      await navigator.clipboard.writeText(entry.currentCode);
+      await copyText(entry.currentCode);
       setMessage(totpEntriesMeta, `${entry.issuer} / ${entry.account} 的验证码已复制。`);
     } catch {
-      setMessage(totpEntriesMeta, '复制失败，请检查浏览器剪贴板权限。');
+      setMessage(totpEntriesMeta, '复制失败。请先手动展开验证码后再复制，或改用 HTTPS/受信任内网访问。');
     }
   }
 });
