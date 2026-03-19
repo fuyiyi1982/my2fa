@@ -1,9 +1,9 @@
 ﻿<!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TOTP Service - Minimalist Auth</title>
+    <title>TOTP 服务 - 个人身份验证</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -13,67 +13,67 @@
     <div class="container">
       <header class="header">
         <div>
-          <p class="subtitle">Personal Self-Hosted Auth</p>
-          <h1 class="title">My 2FA</h1>
+          <p class="subtitle">个人自托管验证服务</p>
+          <h1 class="title">我的 2FA</h1>
           <p class="description">
-            A single-user, finely-crafted TOTP and recovery service.
+            面向个人的、经过精心打磨的 TOTP 与恢复辅助系统。
           </p>
         </div>
-        <div id="sessionStatus" class="status-badge">Checking service status...</div>
+        <div id="sessionStatus" class="status-badge">正在检查服务状态...</div>
       </header>
 
       <main class="content grid">
         <!-- Login Section -->
         <section class="card">
-          <h2 class="section-title">Authentication</h2>
+          <h2 class="section-title">身份验证</h2>
           <div class="split-forms">
             <form id="passwordLoginForm" class="form-group">
-              <h3>1. Password</h3>
+              <h3>1. 密码验证</h3>
               <div class="input-wrapper">
-                <label>Admin Password</label>
+                <label>管理员密码</label>
                 <input type="password" name="password" required />
               </div>
-              <button type="submit" class="btn">Start Login</button>
+              <button type="submit" class="btn">开始登录</button>
             </form>
 
             <form id="totpLoginForm" class="form-group disabled-look">
-              <h3>2. Second Factor</h3>
+              <h3>2. 二步验证</h3>
               <div class="input-wrapper">
-                <label>Challenge ID</label>
-                <input type="text" name="challengeId" placeholder="Auto-filled" required />
+                <label>会话 ID</label>
+                <input type="text" name="challengeId" placeholder="填写密码后自动生成" required />
               </div>
               <div class="input-wrapper">
-                <label>TOTP / Recovery Code</label>
-                <input type="text" name="code" placeholder="6-digit code or backup" required />
+                <label>动态验证码 / 恢复码</label>
+                <input type="text" name="code" placeholder="6 位数字或备用恢复码" required />
               </div>
-              <button type="submit" class="btn btn-outline">Complete Login</button>
+              <button type="submit" class="btn btn-outline">完成登录</button>
             </form>
           </div>
-          <div id="activityResult" class="message-box">Run 
-pm run init-admin -- --password="..." before first login.</div>
+          <div id="activityResult" class="message-box">首次登录前请在终端运行 \
+pm run init-admin -- --password="..."\ 。</div>
         </section>
 
         <!-- Enrollment Section -->
         <section class="card">
           <div class="card-header">
             <div>
-              <h2 class="section-title">TOTP Enrollment</h2>
-              <p class="description small">Generate a QR code, scan it, and confirm with your current code.</p>
+              <h2 class="section-title">TOTP 绑定</h2>
+              <p class="description small">生成二维码并在身份验证器中扫描，然后输入当前动态验证码以确认绑定。</p>
             </div>
-            <button id="startEnrollmentButton" class="btn btn-sm">Start / Rotate</button>
+            <button id="startEnrollmentButton" class="btn btn-sm">开始绑定 / 重新绑定</button>
           </div>
           <div class="enrollment-body">
             <div class="qr-container">
-              <div id="qrMount" class="qr-placeholder">No pending enrollment.</div>
+              <div id="qrMount" class="qr-placeholder">暂无正在进行的绑定任务。</div>
             </div>
             <div class="enrollment-controls">
-              <div id="enrollmentMeta" class="message-box">No pending enrollment.</div>
+              <div id="enrollmentMeta" class="message-box">暂无正在进行的绑定任务。</div>
               <form id="confirmEnrollmentForm" class="form-group">
                 <div class="input-wrapper">
-                  <label>Confirm TOTP</label>
-                  <input type="text" name="code" placeholder="Current 6-digit code" required />
+                  <label>确认动态验证码</label>
+                  <input type="text" name="code" placeholder="输入身份验证器上的 6 位验证码" required />
                 </div>
-                <button type="submit" class="btn">Enable TOTP</button>
+                <button type="submit" class="btn">启用 TOTP</button>
               </form>
             </div>
           </div>
@@ -82,44 +82,44 @@ pm run init-admin -- --password="..." before first login.</div>
         <!-- Recovery & Settings -->
         <div class="grid-2-col">
           <section class="card">
-            <h2 class="section-title">Recovery</h2>
+            <h2 class="section-title">安全恢复</h2>
             <p class="description small">
-              Recovery codes are shown only once. Using one invalidates the current TOTP.
+              恢复码仅在生成时显示一次。一旦使用恢复码登录，当前的 TOTP 绑定将会失效。
             </p>
             <form id="recoveryRotateForm" class="form-group">
               <div class="input-wrapper">
-                <label>Current Password</label>
+                <label>当前管理员密码</label>
                 <input type="password" name="password" required />
               </div>
-              <button type="submit" class="btn btn-outline">Rotate Codes</button>
+              <button type="submit" class="btn btn-outline">重新生成恢复码</button>
             </form>
-            <div id="recoveryResult" class="message-box">No changes.</div>
+            <div id="recoveryResult" class="message-box">暂无恢复码变更。</div>
           </section>
 
           <section class="card">
-            <h2 class="section-title">Admin Controls</h2>
+            <h2 class="section-title">管理设置</h2>
             <form id="passwordChangeForm" class="form-group">
               <div class="input-wrapper">
-                <label>Current Password</label>
+                <label>当前密码</label>
                 <input type="password" name="currentPassword" required />
               </div>
               <div class="input-wrapper">
-                <label>New Password</label>
-                <input type="password" name="nextPassword" placeholder="Min. 12 characters" required />
+                <label>新密码</label>
+                <input type="password" name="nextPassword" placeholder="至少 12 个字符" required />
               </div>
-              <button type="submit" class="btn btn-outline">Change Password</button>
+              <button type="submit" class="btn btn-outline">修改密码</button>
             </form>
             <div class="action-row">
-              <button id="refreshSessionButton" class="btn btn-ghost">Refresh</button>
-              <button id="logoutButton" class="btn btn-danger">Logout</button>
+              <button id="refreshSessionButton" class="btn btn-ghost">刷新会话</button>
+              <button id="logoutButton" class="btn btn-danger">退出登录</button>
             </div>
-            <div id="accountActionResult" class="message-box">No account changes yet.</div>
+            <div id="accountActionResult" class="message-box">账户状态暂无改变。</div>
           </section>
         </div>
 
         <section class="card full-width">
-          <h2 class="section-title">Logs & Status</h2>
-          <div id="meResult" class="code-box">No authenticated session.</div>
+          <h2 class="section-title">运行状态 & 审计日志</h2>
+          <div id="meResult" class="code-box">当前未登录。</div>
         </section>
       </main>
     </div>

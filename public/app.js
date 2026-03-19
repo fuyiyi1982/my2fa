@@ -1,4 +1,4 @@
-const passwordLoginForm = document.getElementById('passwordLoginForm');
+﻿const passwordLoginForm = document.getElementById('passwordLoginForm');
 const totpLoginForm = document.getElementById('totpLoginForm');
 const confirmEnrollmentForm = document.getElementById('confirmEnrollmentForm');
 const recoveryRotateForm = document.getElementById('recoveryRotateForm');
@@ -28,15 +28,15 @@ async function api(path, options = {}) {
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload.error || `Request failed: ${response.status}`);
+    throw new Error(payload.error || \请求失败: \\);
   }
   return payload;
 }
 
 function renderEnrollment(enrollment) {
   if (!enrollment) {
-    qrMount.textContent = 'No pending enrollment.';
-    enrollmentMeta.textContent = 'No pending enrollment.';
+    qrMount.textContent = '暂无正在进行的绑定任务。';
+    enrollmentMeta.textContent = '暂无正在进行的绑定任务。';
     return;
   }
 
@@ -53,8 +53,9 @@ async function refreshStatus() {
   try {
     const status = await api('/api/status', { method: 'GET' });
     if (!status.initialized) {
-      sessionStatus.textContent = 'Admin account is not initialized';
-      meResult.textContent = 'Run `npm run init-admin -- --password="your-long-password"` on the server first.';
+      sessionStatus.textContent = '管理员账户未初始化';
+      meResult.textContent = '请先在服务器上运行 \
+pm run init-admin -- --password="您的长密码"\。';
       renderEnrollment(null);
       return;
     }
@@ -72,24 +73,24 @@ async function refreshSession() {
 
     const markers = [];
     if (payload.admin.session?.bootstrap) {
-      markers.push('bootstrap session');
+      markers.push('引导会话');
     }
     if (payload.admin.session?.usedRecoveryCode) {
-      markers.push('recovered with backup code');
+      markers.push('已通过备用恢复码登录');
     }
     sessionStatus.textContent = markers.length
-      ? `Authenticated admin (${markers.join(', ')})`
-      : 'Authenticated admin';
+      ? \已认证的管理员 (\)\
+      : '已认证的管理员';
   } catch (error) {
     meResult.textContent = error.message;
-    sessionStatus.textContent = 'No active session';
+    sessionStatus.textContent = '当前未登录';
     renderEnrollment(null);
   }
 }
 
 passwordLoginForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  activityResult.textContent = 'Verifying password...';
+  activityResult.textContent = '正在验证密码...';
   const formData = new FormData(passwordLoginForm);
 
   try {
@@ -111,7 +112,7 @@ passwordLoginForm.addEventListener('submit', async (event) => {
 
 totpLoginForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  activityResult.textContent = 'Checking second factor...';
+  activityResult.textContent = '正在核对二步验证...';
   const formData = new FormData(totpLoginForm);
 
   try {
@@ -130,7 +131,7 @@ totpLoginForm.addEventListener('submit', async (event) => {
 });
 
 startEnrollmentButton.addEventListener('click', async () => {
-  accountActionResult.textContent = 'Creating a fresh enrollment QR code...';
+  accountActionResult.textContent = '正在生成全新的绑定二维码...';
   try {
     const payload = await api('/api/account/totp/enroll', {
       method: 'POST',
@@ -146,7 +147,7 @@ startEnrollmentButton.addEventListener('click', async () => {
 
 confirmEnrollmentForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  accountActionResult.textContent = 'Confirming pending enrollment...';
+  accountActionResult.textContent = '正在确认待绑定状态...';
   const formData = new FormData(confirmEnrollmentForm);
 
   try {
@@ -158,7 +159,7 @@ confirmEnrollmentForm.addEventListener('submit', async (event) => {
     });
     accountActionResult.textContent = pretty(payload);
     recoveryResult.textContent = pretty({
-      message: 'Save these recovery codes now. They will not be shown again.',
+      message: '请立刻保存这些恢复码！它们未来不会再显示。',
       recoveryCodes: payload.recoveryCodes
     });
     confirmEnrollmentForm.reset();
@@ -170,7 +171,7 @@ confirmEnrollmentForm.addEventListener('submit', async (event) => {
 
 recoveryRotateForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  recoveryResult.textContent = 'Rotating recovery codes...';
+  recoveryResult.textContent = '重新生成恢复码中...';
   const formData = new FormData(recoveryRotateForm);
 
   try {
@@ -190,7 +191,7 @@ recoveryRotateForm.addEventListener('submit', async (event) => {
 
 passwordChangeForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  accountActionResult.textContent = 'Updating password...';
+  accountActionResult.textContent = '正在更新密码...';
   const formData = new FormData(passwordChangeForm);
 
   try {
@@ -214,7 +215,7 @@ logoutButton.addEventListener('click', async () => {
   try {
     await api('/api/logout', { method: 'POST', body: '{}' });
   } catch (_) {
-    // Ignore logout errors.
+    // 忽略登出时的错误
   }
   await refreshStatus();
 });
