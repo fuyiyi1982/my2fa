@@ -34,7 +34,7 @@ body {
 }
 
 .container {
-  max-width: 860px;
+  max-width: 1120px;
   margin: 0 auto;
 }
 
@@ -338,6 +338,7 @@ input::placeholder {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  flex-shrink: 0;
 }
 
 .totp-entry-title {
@@ -349,7 +350,7 @@ input::placeholder {
 .totp-entry-subtitle {
   font-size: 0.82rem;
   color: var(--text-muted);
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 .totp-entry-code {
@@ -382,6 +383,13 @@ input::placeholder {
   font-size: 0.8rem;
   color: var(--text-muted);
   font-family: monospace;
+}
+
+.totp-entry-card .status-badge {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
 }
 
 @media (max-width: 640px) {
