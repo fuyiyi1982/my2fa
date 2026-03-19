@@ -28,7 +28,7 @@ async function api(path, options = {}) {
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload.error || \请求失败: \\);
+    throw new Error(payload.error || '请求失败。');
   }
   return payload;
 }
@@ -54,8 +54,7 @@ async function refreshStatus() {
     const status = await api('/api/status', { method: 'GET' });
     if (!status.initialized) {
       sessionStatus.textContent = '管理员账户未初始化';
-      meResult.textContent = '请先在服务器上运行 \
-pm run init-admin -- --password="您的长密码"\。';
+      meResult.textContent = '请先在服务器上运行 npm run init-admin -- --password="您的长密码"。';
       renderEnrollment(null);
       return;
     }
@@ -79,7 +78,7 @@ async function refreshSession() {
       markers.push('已通过备用恢复码登录');
     }
     sessionStatus.textContent = markers.length
-      ? \已认证的管理员 (\)\
+      ? `已认证的管理员 (${markers.join(' / ')})`
       : '已认证的管理员';
   } catch (error) {
     meResult.textContent = error.message;
