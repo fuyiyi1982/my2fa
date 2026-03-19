@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Personal Internal TOTP</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Personal self-hosted auth</p>
+          <h1>One admin. One vault. One recovery path.</h1>
+          <p class="lede">
+            This version is trimmed for a single internal operator: local admin bootstrap,
+            encrypted TOTP secret storage, hashed recovery codes, and a small audit trail.
+          </p>
+        </div>
+        <div class="status" id="sessionStatus">Checking service status...</div>
+      </section>
+
+      <section class="grid layout-main">
+        <article class="card flow-card">
+          <h2>Login</h2>
+          <div class="flow-grid single-login">
+            <form id="passwordLoginForm" class="stack panel-block">
+              <h3>Password</h3>
+              <label>Admin password<input type="password" name="password" required /></label>
+              <button type="submit">Start login</button>
+            </form>
+
+            <form id="totpLoginForm" class="stack panel-block accent-block">
+              <h3>Second factor</h3>
+              <label>Challenge ID<input type="text" name="challengeId" placeholder="Issued after password step" required /></label>
+              <label>TOTP or recovery code<input type="text" name="code" placeholder="123456 or backup code" required /></label>
+              <button type="submit">Complete login</button>
+            </form>
+          </div>
+          <div id="activityResult" class="result muted">Run `npm run init-admin -- --password="..."` before first login.</div>
+        </article>
+
+        <article class="card enrollment-card">
+          <div class="card-header">
+            <div>
+              <h2>TOTP enrollment</h2>
+              <p>Generate a QR code, scan it in your authenticator app, then confirm with one current TOTP.</p>
+            </div>
+            <button id="startEnrollmentButton">Start or rotate enrollment</button>
+          </div>
+          <div class="enrollment-grid">
+            <div class="qr-panel">
+              <div id="qrMount" class="qr-placeholder">No pending enrollment.</div>
+            </div>
+            <div class="stack">
+              <div id="enrollmentMeta" class="result muted">No pending enrollment.</div>
+              <form id="confirmEnrollmentForm" class="stack">
+                <label>Confirm TOTP<input type="text" name="code" placeholder="Current 6-digit code" required /></label>
+                <button type="submit">Enable TOTP</button>
+              </form>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="grid layout-secondary">
+        <article class="card">
+          <h2>Recovery</h2>
+          <p class="muted small-copy">
+            Recovery codes are shown only on generation or rotation. If one is used to log in,
+            start a fresh enrollment immediately.
+          </p>
+          <form id="recoveryRotateForm" class="stack">
+            <label>Confirm current password<input type="password" name="password" required /></label>
+            <button type="submit">Rotate recovery codes</button>
+          </form>
+          <div id="recoveryResult" class="result muted">No recovery-code changes yet.</div>
+        </article>
+
+        <article class="card">
+          <h2>Admin controls</h2>
+          <form id="passwordChangeForm" class="stack">
+            <label>Current password<input type="password" name="currentPassword" required /></label>
+            <label>New password<input type="password" name="nextPassword" placeholder="At least 12 characters" required /></label>
+            <button type="submit">Change password</button>
+          </form>
+          <div class="button-row">
+            <button id="refreshSessionButton" class="secondary">Refresh session</button>
+            <button id="logoutButton" class="danger">Logout</button>
+          </div>
+          <div id="accountActionResult" class="result muted">No account changes yet.</div>
+        </article>
+
+        <article class="card full-span">
+          <h2>Current state and recent audit log</h2>
+          <div id="meResult" class="result muted">No authenticated session.</div>
+        </article>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

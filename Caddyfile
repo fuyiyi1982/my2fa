@@ -1,0 +1,16 @@
+:443 {
+  encode zstd gzip
+
+  # Replace with your LAN hostname if you have local DNS, for example:
+  # personal-2fa.lan
+  tls internal
+
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "no-referrer"
+  }
+
+  reverse_proxy 127.0.0.1:3000
+}

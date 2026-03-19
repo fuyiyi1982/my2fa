@@ -1,0 +1,14 @@
+{
+  "name": "totp-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Single-user internal TOTP service with SQLite storage.",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test.js",
+    "init-admin": "node init-admin.js"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  }
+}

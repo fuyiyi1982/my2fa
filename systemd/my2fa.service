@@ -1,0 +1,16 @@
+[Unit]
+Description=My2FA Personal Internal TOTP Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/my2fa
+EnvironmentFile=/etc/my2fa.env
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=3
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
