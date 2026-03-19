@@ -11,7 +11,6 @@ const logoutButton = document.getElementById('logoutButton');
 const activityResult = document.getElementById('activityResult');
 const recoveryResult = document.getElementById('recoveryResult');
 const accountActionResult = document.getElementById('accountActionResult');
-const meResult = document.getElementById('meResult');
 const qrMount = document.getElementById('qrMount');
 const enrollmentMeta = document.getElementById('enrollmentMeta');
 const sessionStatus = document.getElementById('sessionStatus');
@@ -20,10 +19,8 @@ const totpEntriesMeta = document.getElementById('totpEntriesMeta');
 const totpEntriesList = document.getElementById('totpEntriesList');
 
 let entryRefreshTimer = null;
-
-function pretty(data) {
-  return JSON.stringify(data, null, 2);
-}
+let entryState = new Map();
+let lastEntries = [];
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({
@@ -49,6 +46,10 @@ async function api(path, options = {}) {
   return payload;
 }
 
+function setMessage(element, text) {
+  element.textContent = text;
+}
+
 function renderEnrollment(enrollment) {
   if (!enrollment) {
     qrMount.textContent = '暂无正在进行的绑定任务。';
@@ -57,12 +58,12 @@ function renderEnrollment(enrollment) {
   }
 
   qrMount.innerHTML = enrollment.qrSvg;
-  enrollmentMeta.textContent = pretty({
-    startedAt: enrollment.startedAt,
-    expiresAt: enrollment.expiresAt,
-    secretPreview: enrollment.secretPreview,
-    otpauthUrl: enrollment.otpauthUrl
-  });
+  enrollmentMeta.textContent = [
+    `开始时间: ${enrollment.startedAt}`,
+    `过期时间: ${enrollment.expiresAt}`,
+    `密钥预览: ${enrollment.secretPreview}`,
+    `otpauth URL: ${enrollment.otpauthUrl}`
+  ].join('\n');
 }
 
 function stopEntryRefreshLoop() {
@@ -82,40 +83,69 @@ function startEntryRefreshLoop() {
   }, 1000);
 }
 
+function pruneEntryState(entries) {
+  const next = new Map();
+  for (const entry of entries) {
+    next.set(entry.id, entryState.get(entry.id) || { expanded: false });
+  }
+  entryState = next;
+}
+
 function renderTotpEntries(entries) {
+  lastEntries = entries;
+  pruneEntryState(entries);
+
   if (!entries.length) {
     totpEntriesList.innerHTML = '<div class="message-box">还没有录入任何 TOTP 条目。</div>';
     return;
   }
 
-  totpEntriesList.innerHTML = entries.map((entry) => `
-    <article class="totp-entry-card">
-      <div class="totp-entry-head">
-        <div>
-          <div class="totp-entry-title">${escapeHtml(entry.issuer)}</div>
-          <div class="totp-entry-subtitle">${escapeHtml(entry.account)}</div>
+  totpEntriesList.innerHTML = entries.map((entry) => {
+    const state = entryState.get(entry.id) || { expanded: false };
+    const codeContent = state.expanded
+      ? `
+        <div class="totp-entry-code-row">
+          <div class="totp-entry-code">${escapeHtml(entry.currentCode)}</div>
+          <button type="button" class="btn btn-outline btn-sm copy-code-button" data-entry-id="${entry.id}">复制验证码</button>
         </div>
-        <div class="status-badge">${entry.secondsRemaining}s</div>
-      </div>
-      <div class="totp-entry-code">${escapeHtml(entry.currentCode)}</div>
-      <div class="totp-entry-meta">
-        <span>Secret: ${escapeHtml(entry.secretPreview)}</span>
-        <span>Updated: ${escapeHtml(entry.updatedAt)}</span>
-      </div>
-    </article>
-  `).join('');
+        <div class="totp-entry-meta">
+          <span>剩余: ${entry.secondsRemaining}s</span>
+          <span>Secret: ${escapeHtml(entry.secretPreview)}</span>
+        </div>
+      `
+      : '<div class="totp-entry-hidden">已折叠，展开后查看当前验证码。</div>';
+
+    return `
+      <article class="totp-entry-card">
+        <div class="totp-entry-head">
+          <div>
+            <div class="totp-entry-title">${escapeHtml(entry.issuer)}</div>
+            <div class="totp-entry-subtitle">${escapeHtml(entry.account)}</div>
+          </div>
+          <div class="totp-entry-actions">
+            <div class="status-badge">${entry.secondsRemaining}s</div>
+            <button type="button" class="btn btn-ghost btn-sm toggle-entry-button" data-entry-id="${entry.id}">
+              ${state.expanded ? '隐藏验证码' : '显示验证码'}
+            </button>
+          </div>
+        </div>
+        ${codeContent}
+      </article>
+    `;
+  }).join('');
 }
 
 async function refreshTotpEntries({ silent = false } = {}) {
   try {
     const payload = await api('/api/totp-entries', { method: 'GET' });
-    renderTotpEntries(payload.entries || []);
-    totpEntriesMeta.textContent = `共 ${payload.entries.length} 条，服务端每 30 秒轮换一次验证码。`;
+    const entries = payload.entries || [];
+    renderTotpEntries(entries);
+    setMessage(totpEntriesMeta, `共 ${entries.length} 条，可按需展开并一键复制验证码。`);
   } catch (error) {
     stopEntryRefreshLoop();
-    totpEntriesMeta.textContent = error.message;
+    setMessage(totpEntriesMeta, error.message);
     if (!silent) {
-      totpEntriesList.innerHTML = '<div class="message-box">登录后将在这里显示实时验证码。</div>';
+      totpEntriesList.innerHTML = '<div class="message-box">登录后将在这里显示你的 TOTP 条目。</div>';
     }
   }
 }
@@ -124,24 +154,23 @@ async function refreshStatus() {
   try {
     const status = await api('/api/status', { method: 'GET' });
     if (!status.initialized) {
-      sessionStatus.textContent = '管理员账户未初始化';
-      meResult.textContent = '请先在服务器上运行 npm run init-admin -- --password="您的长密码"。';
+      setMessage(sessionStatus, '管理员账户未初始化');
       renderEnrollment(null);
       stopEntryRefreshLoop();
-      totpEntriesMeta.textContent = '管理员账户未初始化。';
+      setMessage(activityResult, '请先在服务器上运行 npm run init-admin -- --password="您的长密码"。');
+      setMessage(totpEntriesMeta, '管理员账户未初始化。');
       totpEntriesList.innerHTML = '<div class="message-box">初始化管理员账户后即可录入 TOTP 条目。</div>';
       return;
     }
     await refreshSession();
   } catch (error) {
-    sessionStatus.textContent = error.message;
+    setMessage(sessionStatus, error.message);
   }
 }
 
 async function refreshSession() {
   try {
     const payload = await api('/api/me', { method: 'GET' });
-    meResult.textContent = pretty(payload);
     renderEnrollment(payload.admin.pendingEnrollment);
 
     const markers = [];
@@ -149,27 +178,28 @@ async function refreshSession() {
       markers.push('引导会话');
     }
     if (payload.admin.session?.usedRecoveryCode) {
-      markers.push('已通过备用恢复码登录');
+      markers.push('已通过恢复码登录');
     }
-    sessionStatus.textContent = markers.length
-      ? `已认证的管理员 (${markers.join(' / ')})`
-      : '已认证的管理员';
+
+    setMessage(
+      sessionStatus,
+      markers.length ? `已认证的管理员 (${markers.join(' / ')})` : '已认证的管理员'
+    );
 
     await refreshTotpEntries();
     startEntryRefreshLoop();
   } catch (error) {
-    meResult.textContent = error.message;
-    sessionStatus.textContent = '当前未登录';
+    setMessage(sessionStatus, '当前未登录');
     renderEnrollment(null);
     stopEntryRefreshLoop();
-    totpEntriesMeta.textContent = '当前未登录。';
-    totpEntriesList.innerHTML = '<div class="message-box">登录后将在这里显示实时验证码。</div>';
+    setMessage(totpEntriesMeta, '当前未登录。');
+    totpEntriesList.innerHTML = '<div class="message-box">登录后将在这里显示你的 TOTP 条目。</div>';
   }
 }
 
 passwordLoginForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  activityResult.textContent = '正在验证密码...';
+  setMessage(activityResult, '正在验证密码...');
   const formData = new FormData(passwordLoginForm);
 
   try {
@@ -179,54 +209,58 @@ passwordLoginForm.addEventListener('submit', async (event) => {
         password: formData.get('password')
       })
     });
-    activityResult.textContent = pretty(payload);
+
     if (payload.challengeId) {
       totpLoginForm.elements.challengeId.value = payload.challengeId;
+      setMessage(activityResult, '密码验证通过，请输入 TOTP 验证码或恢复码完成登录。');
+    } else {
+      setMessage(activityResult, '密码验证通过，请继续完成当前管理员账户的 TOTP 绑定。');
     }
+
     await refreshStatus();
   } catch (error) {
-    activityResult.textContent = error.message;
+    setMessage(activityResult, error.message);
   }
 });
 
 totpLoginForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  activityResult.textContent = '正在核对二步验证...';
+  setMessage(activityResult, '正在核对二步验证码...');
   const formData = new FormData(totpLoginForm);
 
   try {
-    const payload = await api('/api/login/totp', {
+    await api('/api/login/totp', {
       method: 'POST',
       body: JSON.stringify({
         challengeId: formData.get('challengeId'),
         code: formData.get('code')
       })
     });
-    activityResult.textContent = pretty(payload);
+    setMessage(activityResult, '登录成功。');
     await refreshStatus();
   } catch (error) {
-    activityResult.textContent = error.message;
+    setMessage(activityResult, error.message);
   }
 });
 
 startEnrollmentButton.addEventListener('click', async () => {
-  accountActionResult.textContent = '正在生成全新的绑定二维码...';
+  setMessage(accountActionResult, '正在生成新的绑定二维码...');
   try {
     const payload = await api('/api/account/totp/enroll', {
       method: 'POST',
       body: '{}'
     });
-    accountActionResult.textContent = pretty(payload);
     renderEnrollment(payload.enrollment);
+    setMessage(accountActionResult, '新的绑定二维码已生成，请在验证器中扫描后输入当前验证码确认。');
     await refreshStatus();
   } catch (error) {
-    accountActionResult.textContent = error.message;
+    setMessage(accountActionResult, error.message);
   }
 });
 
 confirmEnrollmentForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  accountActionResult.textContent = '正在确认待绑定状态...';
+  setMessage(accountActionResult, '正在确认绑定...');
   const formData = new FormData(confirmEnrollmentForm);
 
   try {
@@ -236,21 +270,18 @@ confirmEnrollmentForm.addEventListener('submit', async (event) => {
         code: formData.get('code')
       })
     });
-    accountActionResult.textContent = pretty(payload);
-    recoveryResult.textContent = pretty({
-      message: '请立刻保存这些恢复码！它们未来不会再显示。',
-      recoveryCodes: payload.recoveryCodes
-    });
+    setMessage(accountActionResult, 'TOTP 已启用。');
+    setMessage(recoveryResult, `请立即保存恢复码：${payload.recoveryCodes.join(' ')}`);
     confirmEnrollmentForm.reset();
     await refreshStatus();
   } catch (error) {
-    accountActionResult.textContent = error.message;
+    setMessage(accountActionResult, error.message);
   }
 });
 
 recoveryRotateForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  recoveryResult.textContent = '重新生成恢复码中...';
+  setMessage(recoveryResult, '正在重新生成恢复码...');
   const formData = new FormData(recoveryRotateForm);
 
   try {
@@ -260,42 +291,42 @@ recoveryRotateForm.addEventListener('submit', async (event) => {
         password: formData.get('password')
       })
     });
-    recoveryResult.textContent = pretty(payload);
+    setMessage(recoveryResult, `新的恢复码：${payload.recoveryCodes.join(' ')}`);
     recoveryRotateForm.reset();
     await refreshStatus();
   } catch (error) {
-    recoveryResult.textContent = error.message;
+    setMessage(recoveryResult, error.message);
   }
 });
 
 passwordChangeForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  accountActionResult.textContent = '正在更新密码...';
+  setMessage(accountActionResult, '正在更新密码...');
   const formData = new FormData(passwordChangeForm);
 
   try {
-    const payload = await api('/api/account/password/change', {
+    await api('/api/account/password/change', {
       method: 'POST',
       body: JSON.stringify({
         currentPassword: formData.get('currentPassword'),
         nextPassword: formData.get('nextPassword')
       })
     });
-    accountActionResult.textContent = pretty(payload);
+    setMessage(accountActionResult, '密码已更新。');
     passwordChangeForm.reset();
     await refreshStatus();
   } catch (error) {
-    accountActionResult.textContent = error.message;
+    setMessage(accountActionResult, error.message);
   }
 });
 
 totpEntryForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  totpEntryResult.textContent = '正在保存新的 TOTP 条目...';
+  setMessage(totpEntryResult, '正在保存新的 TOTP 条目...');
   const formData = new FormData(totpEntryForm);
 
   try {
-    const payload = await api('/api/totp-entries', {
+    await api('/api/totp-entries', {
       method: 'POST',
       body: JSON.stringify({
         issuer: formData.get('issuer'),
@@ -303,16 +334,44 @@ totpEntryForm.addEventListener('submit', async (event) => {
         secret: formData.get('secret')
       })
     });
-    totpEntryResult.textContent = pretty(payload);
+    setMessage(totpEntryResult, '条目已保存。');
     totpEntryForm.reset();
     await refreshTotpEntries();
     startEntryRefreshLoop();
   } catch (error) {
-    totpEntryResult.textContent = error.message;
+    setMessage(totpEntryResult, error.message);
+  }
+});
+
+totpEntriesList.addEventListener('click', async (event) => {
+  const toggleButton = event.target.closest('.toggle-entry-button');
+  if (toggleButton) {
+    const entryId = Number(toggleButton.dataset.entryId);
+    const state = entryState.get(entryId) || { expanded: false };
+    entryState.set(entryId, { expanded: !state.expanded });
+    renderTotpEntries(lastEntries);
+    return;
+  }
+
+  const copyButton = event.target.closest('.copy-code-button');
+  if (copyButton) {
+    const entryId = Number(copyButton.dataset.entryId);
+    const entry = lastEntries.find((item) => item.id === entryId);
+    if (!entry) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(entry.currentCode);
+      setMessage(totpEntriesMeta, `${entry.issuer} / ${entry.account} 的验证码已复制。`);
+    } catch {
+      setMessage(totpEntriesMeta, '复制失败，请检查浏览器剪贴板权限。');
+    }
   }
 });
 
 refreshSessionButton.addEventListener('click', refreshStatus);
+
 logoutButton.addEventListener('click', async () => {
   try {
     await api('/api/logout', { method: 'POST', body: '{}' });

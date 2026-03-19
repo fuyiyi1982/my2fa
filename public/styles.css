@@ -334,6 +334,12 @@ input::placeholder {
   margin-bottom: 0.75rem;
 }
 
+.totp-entry-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
 .totp-entry-title {
   font-size: 1rem;
   font-weight: 600;
@@ -353,6 +359,21 @@ input::placeholder {
   color: var(--text-main);
 }
 
+.totp-entry-code-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.totp-entry-hidden {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-family: monospace;
+  padding: 0.2rem 0;
+}
+
 .totp-entry-meta {
   display: flex;
   justify-content: space-between;
@@ -361,6 +382,16 @@ input::placeholder {
   font-size: 0.8rem;
   color: var(--text-muted);
   font-family: monospace;
+}
+
+@media (max-width: 640px) {
+  .totp-entry-head,
+  .totp-entry-code-row,
+  .totp-entry-meta,
+  .totp-entry-actions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 /* Message Boxes and Code Box */
